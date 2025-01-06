@@ -62,7 +62,7 @@ class PrivateRecipeApiTests(TestCase):
 
         self.client.force_authenticate(self.user)
 
-    def  test_retrive_recipes(self):
+    def test_retrive_recipes(self):
         """test retrieving a list of recipes."""
         create_recipe(user=self.user)
         create_recipe(user=self.user)
@@ -193,7 +193,7 @@ class PrivateRecipeApiTests(TestCase):
             'title': 'Thai Prawn Curry',
             'time_minutes': 30,
             'price': Decimal('2.50'),
-            'tags': [{'name': 'Thai'}, {'name': 'Dinner'}]
+            'tags': [{'name': 'Thai'}, {'name': 'Dinner'}],
         }
         res = self.client.post(RECIPES_URL, payload, format='json')
 
@@ -340,7 +340,7 @@ class PrivateRecipeApiTests(TestCase):
         recipe.ingredients.add(ingredient1)
 
         ingredient2 = Ingredient.objects.create(user=self.user, name='Chili')
-        payload = { 'ingredients': [{'name': 'Chili'}]}
+        payload = {'ingredients': [{'name': 'Chili'}]}
         url = detail_url(recipe.id)
         res = self.client.patch(url, payload, format='json')
 
@@ -354,14 +354,58 @@ class PrivateRecipeApiTests(TestCase):
         recipe = create_recipe(user=self.user)
         recipe.ingredients.add(ingredient)
 
-        payload = {
-            'ingredients': []
-        }
+        payload = {'ingredients': []}
         url = detail_url(recipe.id)
         res = self.client.patch(url, payload, format='json')
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(recipe.ingredients.count(), 0)
+
+    def test_filter_by_tags(self):
+        """Test filtering recipes by tags."""
+        r1 = create_recipe(user=self.user, title='Thai Vegetable Curry')
+        r2 = create_recipe(user=self.user, title='Aubergine with Tahini')
+        tag1 = Tag.objects.create(user=self.user, name='Vegan')
+        tag2 = Tag.objects.create(user=self.user, name='Vegetarian')
+        r1.tags.add(tag1)
+        r2.tags.add(tag2)
+        r3 = create_recipe(user=self.user, title='Fish and Chips')
+
+        params = {
+            'tags': f'{tag1.id},{tag2.id}'
+        }
+        res = self.client.get(RECIPES_URL, params)
+
+        s1 = RecipeSerializer(r1)
+        s2 = RecipeSerializer(r2)
+        s3 = RecipeSerializer(r3)
+        self.assertIn(s1.data, res.data)
+        self.assertIn(s2.data, res.data)
+        self.assertNotIn(s3.data, res.data)
+
+    def test_filter_by_ingredients(self):
+        """Test filtering recipes by ingredients."""
+        r1 = create_recipe(user=self.user, title='Posh Beans on Toast')
+        r2 = create_recipe(user=self.user, title='Chicken Cacciatore')
+        in1 = Ingredient.objects.create(user=self.user, name='Feta Cheese')
+        in2 = Ingredient.objects.create(user=self.user, name='Chicken')
+        r1.ingredients.add(in1)
+        r2.ingredients.add(in2)
+        r3 = create_recipe(user=self.user, title='Red Lentil Daal')
+
+        params = {
+            'ingredients': f'{in1.id},{in2.id}'
+        }
+        res = self.client.get(RECIPES_URL, params)
+
+        s1 = RecipeSerializer(r1)
+        s2 = RecipeSerializer(r2)
+        s3 = RecipeSerializer(r3)
+        self.assertIn(s1.data, res.data)
+        self.assertIn(s2.data, res.data)
+        self.assertNotIn(s3.data, res.data)
+
+
 
 class ImageUploadTests(TestCase):
     """Tests for the image upload API."""
@@ -385,7 +429,7 @@ class ImageUploadTests(TestCase):
             img = Image.new('RGB', (10, 10))
             img.save(image_file, format='JPEG')
             image_file.seek(0)
-            payload= {'image': image_file}
+            payload = {'image': image_file}
             res = self.client.post(url, payload, format='multipart')
 
         self.recipe.refresh_from_db()
@@ -400,4 +444,3 @@ class ImageUploadTests(TestCase):
         res = self.client.post(url, payload, format='multipart')
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        
